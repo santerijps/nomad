@@ -4,9 +4,16 @@ import { parseArgs } from "./cli.ts";
 import { processFile } from "./processor.ts";
 import { minifyHtml } from "./minifier.ts";
 import { ALLOWED_INPUT_EXTENSIONS } from "./types.ts";
+import { isUrl, fetchAndEmbed } from "./fetcher.ts";
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
+
+  if (isUrl(args.input)) {
+    await handleUrl(args.input, args.output, args.minify);
+    return;
+  }
+
   const inputPath = resolve(args.input);
 
   const inputStat = await stat(inputPath).catch(() => null);
@@ -22,6 +29,22 @@ async function main(): Promise<void> {
   } else {
     console.error(`Error: "${args.input}" is not a file or directory.`);
     process.exit(1);
+  }
+}
+
+async function handleUrl(url: string, output: string | null, minify: boolean): Promise<void> {
+  console.error(`Fetching: ${url}`);
+  let html = await fetchAndEmbed(url);
+  if (minify) html = minifyHtml(html);
+
+  if (output) {
+    const outputPath = resolve(output);
+    const outputDir = dirname(outputPath);
+    await mkdir(outputDir, { recursive: true });
+    await Bun.write(outputPath, html);
+    console.error(`Written: ${outputPath}`);
+  } else {
+    process.stdout.write(html);
   }
 }
 

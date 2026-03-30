@@ -6,9 +6,10 @@ Nomad - Static Site Generator for Truly Portable Sites
 Usage:
   nomad <input>                    Process file/directory, output to stdout
   nomad <input> -o <output>        Process file/directory, output to file/directory
+  nomad <url> -o <output>          Download remote page and make it portable
 
 Arguments:
-  <input>                          Input file (.md, .html) or directory
+  <input>                          Input file (.md, .html), directory, or URL
   -o, --output <path>              Output file or directory
   -m, --minify                     Minify and compress the output HTML
 
@@ -19,6 +20,7 @@ Examples:
   nomad input.md -o output.html    Convert Markdown, write to output.html
   nomad inputDir                   Process directory, output to ./out
   nomad inputDir -o outputDir      Process directory, output to outputDir
+  nomad https://example.com -o page.html  Download & embed remote page
 `.trim();
 
 export function parseArgs(argv: string[]): CliArgs {
