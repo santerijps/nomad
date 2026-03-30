@@ -230,7 +230,15 @@ async function embedScripts(html: string, baseDir: string, opts?: EmbedOptions):
   for (const script of scripts) {
     const localPath = resolveLocalPath(script.src, baseDir);
     const content = await readTextFile(localPath);
-    if (content) script.content = content;
+    if (content) {
+      // Transpile TypeScript to JavaScript
+      if (/\.tsx?$/i.test(script.src)) {
+        const transpiler = new Bun.Transpiler({ loader: script.src.endsWith("x") ? "tsx" : "ts" });
+        script.content = transpiler.transformSync(content);
+      } else {
+        script.content = content;
+      }
+    }
   }
 
   let result = html;
@@ -241,9 +249,14 @@ async function embedScripts(html: string, baseDir: string, opts?: EmbedOptions):
         `<script([^>]*)src=["']${escapeRegex(script.src)}["']([^>]*)>[\\s\\S]*?</script>`,
         "gi"
       );
+      const isTs = /\.tsx?$/i.test(script.src);
       result = result.replace(scriptRegex, (_match, before: string, after: string) => {
         // Remove the src attribute but keep other attributes (like type)
-        const attrs = (before + after).trim();
+        let attrs = (before + after).trim();
+        // Strip TypeScript type attributes since the content is now plain JS
+        if (isTs) {
+          attrs = attrs.replace(/\s*type=["'](?:text\/typescript|application\/typescript|module)["']/gi, "");
+        }
         return `<script${attrs ? " " + attrs : ""}>${script.content}</script>`;
       });
     }

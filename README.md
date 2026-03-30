@@ -31,6 +31,7 @@ Ever tried sharing an HTML page only to find the images are missing, the styles 
 - **Syntax highlighting** — Code blocks with language annotations get inline syntax highlighting (no external CSS/JS required)
 - **Watch mode** — Rebuild automatically on file changes with `--watch`
 - **Verbose diagnostics** — See warnings for skipped or missing resources with `--verbose`
+- **TypeScript transpilation** — `<script src="app.ts">` files are automatically transpiled to JavaScript before embedding
 - **File size limits** — Skip embedding files larger than a threshold with `--max-size`
 - **Cross-platform** — Prebuilt executables for Linux, macOS, and Windows (x64 & ARM64) — no runtime required
 - **Remote page capture** — Download any web page by URL and embed all its resources into a single portable file
@@ -178,6 +179,20 @@ Skip embedding files over a certain size to keep output manageable:
 nomad page.html -o out.html --max-size 500000
 ```
 
+### TypeScript support
+
+TypeScript files referenced via `<script src="...">` are automatically transpiled to JavaScript before being embedded. Type annotations, interfaces, and other TypeScript-specific syntax are stripped, producing clean JS that runs in any browser:
+
+```html
+<!-- Input -->
+<script src="app.ts"></script>
+
+<!-- Output (after processing) -->
+<script>const greeting = "Hello";console.log(greeting);</script>
+```
+
+Both `.ts` and `.tsx` files are supported. Any `type="text/typescript"` attribute is automatically removed from the resulting `<script>` tag.
+
 ### Remote URL
 
 Download a remote web page and convert it to portable HTML with all resources embedded:
@@ -247,7 +262,7 @@ nomad <input> [options]
    - `<img src="...">` and `<img srcset="...">` → embedded as `data:image/...;base64,...`
    - `<link rel="stylesheet" href="...">` → replaced with inline `<style>` (CSS `url()` references are also embedded)
    - `<link rel="icon" href="...">` → favicon embedded as data URI
-   - `<script src="...">` → replaced with inline `<script>`
+   - `<script src="...">` → replaced with inline `<script>` (`.ts`/`.tsx` files are transpiled to JS)
    - `<video>`, `<audio>`, `<embed>`, `<object>`, `<iframe>` → embedded as data URIs
    - `<track src="...">` → subtitle/caption files embedded as data URIs
    - `style="...url(...)..."` → inline style URL references embedded

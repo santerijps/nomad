@@ -399,3 +399,49 @@ describe("CLI new flags", () => {
     expect(args.maxSize).toBeNull();
   });
 });
+
+// ============================================================
+// Feature 14: TypeScript transpilation in script tags
+// ============================================================
+describe("TypeScript transpilation", () => {
+  test("transpiles .ts script src to JavaScript", async () => {
+    const html = '<html><body><script src="app.ts"></script></body></html>';
+    const result = await embedResources(html, FIXTURES);
+    // Type annotations should be stripped
+    expect(result).not.toContain(": string");
+    expect(result).not.toContain(": number");
+    // But the runtime code should remain
+    expect(result).toContain("Hello from TypeScript");
+    expect(result).toContain("add");
+    // Should be inlined, not a src reference
+    expect(result).not.toContain('src="app.ts"');
+  });
+
+  test("strips type=text/typescript attribute after transpilation", async () => {
+    const html = '<script type="text/typescript" src="app.ts"></script>';
+    const result = await embedResources(html, FIXTURES);
+    expect(result).not.toContain("text/typescript");
+    expect(result).toContain("<script>");
+  });
+
+  test("leaves .js scripts untouched (no transpilation)", async () => {
+    const html = '<html><body><script src="app.js"></script></body></html>';
+    const result = await embedResources(html, FIXTURES);
+    expect(result).toContain("Hello from app.js");
+  });
+
+  test("full pipeline: HTML with TypeScript script", async () => {
+    const html = `<!DOCTYPE html>
+<html>
+<head><title>TS Test</title></head>
+<body>
+<script type="text/typescript" src="app.ts"></script>
+</body>
+</html>`;
+    const result = await embedResources(html, FIXTURES);
+    expect(result).toContain("<script>");
+    expect(result).not.toContain(": string");
+    expect(result).not.toContain("text/typescript");
+    expect(result).toContain("Hello from TypeScript");
+  });
+});
