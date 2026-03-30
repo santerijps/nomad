@@ -271,7 +271,7 @@ nomad <input> [options]
 9. **Remote URLs** are fetched directly — the same embedding pipeline applies to all linked resources on the page
 10. **Directory builds** auto-generate an `index.html` listing all pages
 
-Remote URLs (`http://`, `https://`) in local files are left untouched — only local files are embedded. When the *input itself* is a URL, all resources on that page are fetched and embedded.
+Remote URLs (`http://`, `https://`) in local files are fetched and embedded alongside local resources. When the *input itself* is a URL, all resources on that page are likewise fetched and embedded.
 
 ## Development
 

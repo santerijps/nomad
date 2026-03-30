@@ -1,5 +1,6 @@
 import { resolve, dirname } from "node:path";
 import { getMimeType } from "./mime.ts";
+import { escapeRegex, replaceAttrValue, isRemoteUrl, fetchRemoteText, fetchRemoteDataUri, embedRemoteCssUrls } from "./remote.ts";
 
 export interface EmbedOptions {
   maxSize?: number | null;
@@ -62,75 +63,14 @@ async function readTextFile(filePath: string): Promise<string | null> {
   }
 }
 
-function isRemoteUrl(src: string): boolean {
-  return src.startsWith("http://") || src.startsWith("https://") || src.startsWith("//");
-}
-
 function resolveLocalPath(src: string, baseDir: string): string {
   return resolve(baseDir, src);
 }
 
 /**
- * Fetches the text content of a remote URL.
- * Returns null if the fetch fails.
- */
-async function fetchRemoteText(url: string): Promise<string | null> {
-  try {
-    const fullUrl = url.startsWith("//") ? `https:${url}` : url;
-    const res = await fetch(fullUrl, { redirect: "follow" });
-    if (!res.ok) return null;
-    return await res.text();
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Fetches a remote URL and returns it as a base64 data URI.
- * Returns null if the fetch fails.
- */
-async function fetchRemoteDataUri(url: string, mimeHint?: string): Promise<string | null> {
-  try {
-    const fullUrl = url.startsWith("//") ? `https:${url}` : url;
-    const res = await fetch(fullUrl, { redirect: "follow" });
-    if (!res.ok) return null;
-    const mime = mimeHint ?? res.headers.get("content-type")?.split(";")[0]?.trim() ?? "application/octet-stream";
-    const bytes = await res.arrayBuffer();
-    const base64 = Buffer.from(bytes).toString("base64");
-    return `data:${mime};base64,${base64}`;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Embeds url() references within remote CSS content by fetching each
- * referenced resource and converting to a data URI.
- */
-async function embedRemoteCssUrlRefs(css: string, cssBaseUrl: string): Promise<string> {
-  const urlRegex = /url\(["']?(?!data:)([^"')]+)["']?\)/gi;
-  const matches = [...css.matchAll(urlRegex)];
-
-  for (const match of matches) {
-    const rawUrl = match[1];
-    if (!rawUrl) continue;
-    try {
-      const absUrl = new URL(rawUrl, cssBaseUrl).href;
-      const dataUri = await fetchRemoteDataUri(absUrl);
-      if (dataUri) {
-        css = css.replaceAll(match[0], `url("${dataUri}")`);
-      }
-    } catch {
-      // skip unresolvable URLs
-    }
-  }
-  return css;
-}
-
-/**
- * Processes HTML content and embeds all local resources (images, CSS, JS,
- * video, audio, PDFs, fonts, favicons, tracks, srcset/picture) directly
- * into the HTML as data URIs or inline content.
+ * Processes HTML content and embeds all resources (local and remote) —
+ * images, CSS, JS, video, audio, PDFs, fonts, favicons, tracks,
+ * srcset/picture — directly into the HTML as data URIs or inline content.
  */
 export async function embedResources(html: string, baseDir: string, opts?: EmbedOptions): Promise<string> {
   clearEmbedWarnings();
@@ -275,7 +215,7 @@ async function embedStylesheets(html: string, baseDir: string, opts?: EmbedOptio
   for (const link of remoteLinks) {
     let content = await fetchRemoteText(link.href);
     if (content) {
-      content = await embedRemoteCssUrlRefs(content, link.href);
+      content = await embedRemoteCssUrls(content, link.href);
       link.content = content;
     }
   }
@@ -550,29 +490,11 @@ async function embedInlineStyleUrls(html: string, baseDir: string, opts?: EmbedO
     const originalStyle = match[1]!;
     const embeddedStyle = await embedCssUrlReferences(originalStyle, baseDir, opts);
     if (embeddedStyle !== originalStyle) {
-      html = html.replace(
+      html = html.replaceAll(
         `style="${originalStyle}"`,
         `style="${embeddedStyle}"`
       );
     }
   }
   return html;
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function replaceAttrValue(
-  html: string,
-  tagPattern: string,
-  attr: string,
-  oldValue: string,
-  newValue: string
-): string {
-  const regex = new RegExp(
-    `(<(?:${tagPattern})\\s[^>]*${attr}=["'])${escapeRegex(oldValue)}(["'])`,
-    "gi"
-  );
-  return html.replace(regex, `$1${newValue}$2`);
 }

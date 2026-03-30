@@ -4,58 +4,17 @@
  * video/audio sources, and CSS url() references.
  */
 
+import {
+  escapeRegex,
+  replaceAttrValue,
+  fetchRemoteText,
+  fetchRemoteDataUri,
+  resolveUrl,
+  embedRemoteCssUrls,
+} from "./remote.ts";
+
 export function isUrl(input: string): boolean {
   return input.startsWith("http://") || input.startsWith("https://");
-}
-
-async function fetchText(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, { redirect: "follow" });
-    if (!res.ok) return null;
-    return await res.text();
-  } catch {
-    return null;
-  }
-}
-
-function resolveUrl(src: string, baseUrl: string): string | null {
-  if (src.startsWith("data:")) return null;
-  try {
-    return new URL(src, baseUrl).href;
-  } catch {
-    return null;
-  }
-}
-
-async function toRemoteDataUri(url: string, mimeHint?: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, { redirect: "follow" });
-    if (!res.ok) return null;
-    const mime = mimeHint ?? res.headers.get("content-type")?.split(";")[0]?.trim() ?? "application/octet-stream";
-    const bytes = await res.arrayBuffer();
-    const base64 = Buffer.from(bytes).toString("base64");
-    return `data:${mime};base64,${base64}`;
-  } catch {
-    return null;
-  }
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function replaceAttrValue(
-  html: string,
-  tagPattern: string,
-  attr: string,
-  oldValue: string,
-  newValue: string,
-): string {
-  const regex = new RegExp(
-    `(<(?:${tagPattern})\\s[^>]*${attr}=["'])${escapeRegex(oldValue)}(["'])`,
-    "gi",
-  );
-  return html.replace(regex, `$1${newValue}$2`);
 }
 
 /**
@@ -75,7 +34,7 @@ export async function fetchAndEmbed(pageUrl: string): Promise<string> {
   html = await embedRemoteScripts(html, baseUrl);
   html = await embedRemoteMedia(html, baseUrl, "video");
   html = await embedRemoteMedia(html, baseUrl, "audio");
-  html = await embedRemoteCssUrls(html, baseUrl);
+  html = await embedRemoteStyleCssUrls(html, baseUrl);
 
   return html;
 }
@@ -95,7 +54,7 @@ async function embedRemoteImages(html: string, baseUrl: string): Promise<string>
   for (const src of srcs) {
     const absUrl = resolveUrl(src, baseUrl);
     if (!absUrl) continue;
-    const dataUri = await toRemoteDataUri(absUrl);
+    const dataUri = await fetchRemoteDataUri(absUrl);
     if (dataUri) {
       html = replaceAttrValue(html, "img", "src", src, dataUri);
     }
@@ -118,9 +77,9 @@ async function embedRemoteStylesheets(html: string, baseUrl: string): Promise<st
   for (const href of hrefs) {
     const absUrl = resolveUrl(href, baseUrl);
     if (!absUrl) continue;
-    let css = await fetchText(absUrl);
+    let css = await fetchRemoteText(absUrl);
     if (css) {
-      css = await embedRemoteCssUrlReferences(css, absUrl);
+      css = await embedRemoteCssUrls(css, absUrl);
       const linkRegex = new RegExp(
         `<link[^>]*href=["']${escapeRegex(href)}["'][^>]*>`,
         "gi",
@@ -146,7 +105,7 @@ async function embedRemoteScripts(html: string, baseUrl: string): Promise<string
   for (const src of srcs) {
     const absUrl = resolveUrl(src, baseUrl);
     if (!absUrl) continue;
-    const content = await fetchText(absUrl);
+    const content = await fetchRemoteText(absUrl);
     if (content) {
       const scriptRegex = new RegExp(
         `<script([^>]*)src=["']${escapeRegex(src)}["']([^>]*)>[\\s\\S]*?</script>`,
@@ -180,7 +139,7 @@ async function embedRemoteMedia(
   for (const src of srcs) {
     const absUrl = resolveUrl(src, baseUrl);
     if (!absUrl) continue;
-    const dataUri = await toRemoteDataUri(absUrl);
+    const dataUri = await fetchRemoteDataUri(absUrl);
     if (dataUri) {
       html = replaceAttrValue(html, `${tag}|source`, "src", src, dataUri);
     }
@@ -188,32 +147,18 @@ async function embedRemoteMedia(
   return html;
 }
 
-async function embedRemoteCssUrlReferences(css: string, cssBaseUrl: string): Promise<string> {
-  const urlRegex = /url\(["']?(?!data:)([^"')]+)["']?\)/gi;
-  const matches = [...css.matchAll(urlRegex)];
-
-  for (const match of matches) {
-    const rawUrl = match[1];
-    if (!rawUrl) continue;
-    const absUrl = resolveUrl(rawUrl, cssBaseUrl);
-    if (!absUrl) continue;
-    const dataUri = await toRemoteDataUri(absUrl);
-    if (dataUri) {
-      const replacement = `url("${dataUri}")`;
-      css = css.replaceAll(match[0], replacement);
-    }
-  }
-  return css;
-}
-
-async function embedRemoteCssUrls(html: string, baseUrl: string): Promise<string> {
+/**
+ * Embeds url() references within already-inlined <style> blocks
+ * by resolving them against the original page URL.
+ */
+async function embedRemoteStyleCssUrls(html: string, baseUrl: string): Promise<string> {
   const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
   const matches = [...html.matchAll(styleRegex)];
 
   for (const match of matches) {
     const originalCss = match[1];
     if (!originalCss) continue;
-    const embeddedCss = await embedRemoteCssUrlReferences(originalCss, baseUrl);
+    const embeddedCss = await embedRemoteCssUrls(originalCss, baseUrl);
     if (embeddedCss !== originalCss) {
       const fullOriginal = match[0];
       const fullReplacement = fullOriginal.replace(originalCss, () => embeddedCss);
