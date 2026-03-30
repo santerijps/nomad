@@ -19,13 +19,13 @@ Arguments:
   --max-size <bytes>               Max file size in bytes to embed (skip larger)
 
 Examples:
-  nomad input.md                   Convert Markdown, output to stdout
-  nomad input.md -o output.html    Convert Markdown, write to output.html
-  nomad input.md --toc             Include table of contents
-  nomad input.md -t template.html  Use custom HTML template
-  nomad inputDir -o dist/          Process directory, output to dist/
+  nomad input.md                          Convert Markdown, output to stdout
+  nomad input.md -o output.html           Convert Markdown, write to output.html
+  nomad input.md --toc                    Include table of contents
+  nomad input.md -t template.html         Use custom HTML template
+  nomad inputDir -o dist/                 Process directory, output to dist/
   nomad https://example.com -o page.html  Download & embed remote page
-  nomad inputDir -w -o dist/       Watch mode with auto-rebuild
+  nomad inputDir -w -o dist/              Watch mode with auto-rebuild
 `.trim();
 
 export function parseArgs(argv: string[]): CliArgs {
