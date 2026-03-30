@@ -205,7 +205,7 @@ export function highlightCodeBlocks(html: string): string {
   // Match <pre><code class="language-xxx"> blocks
   return html.replace(
     /(<pre><code class="language-(\w+)">)([\s\S]*?)(<\/code><\/pre>)/gi,
-    (_match, openTag: string, lang: string, code: string, closeTag: string) => {
+    (_match, _openTag: string, lang: string, code: string, closeTag: string) => {
       const highlighted = applySyntaxHighlighting(code, lang);
       return `<pre class="highlight"><code class="language-${lang}">${highlighted}${closeTag}`;
     },
@@ -230,13 +230,9 @@ function applySyntaxHighlighting(code: string, lang: string): string {
     js: ["const","let","var","function","return","if","else","for","while","class","import","export","from","default","new","this","typeof","instanceof","async","await","try","catch","throw","switch","case","break","continue","of","in","yield","null","undefined","true","false"],
     ts: ["const","let","var","function","return","if","else","for","while","class","import","export","from","default","new","this","typeof","instanceof","async","await","try","catch","throw","switch","case","break","continue","of","in","yield","null","undefined","true","false","type","interface","enum","implements","extends","readonly","abstract","declare","namespace","module","as","is","keyof","never","unknown","any","void","string","number","boolean","public","private","protected"],
     py: ["def","class","return","if","elif","else","for","while","import","from","as","try","except","raise","with","in","not","and","or","is","None","True","False","lambda","yield","pass","break","continue","global","nonlocal","async","await","self"],
-    python: ["def","class","return","if","elif","else","for","while","import","from","as","try","except","raise","with","in","not","and","or","is","None","True","False","lambda","yield","pass","break","continue","global","nonlocal","async","await","self"],
-    javascript: ["const","let","var","function","return","if","else","for","while","class","import","export","from","default","new","this","typeof","instanceof","async","await","try","catch","throw","switch","case","break","continue","of","in","yield","null","undefined","true","false"],
-    typescript: ["const","let","var","function","return","if","else","for","while","class","import","export","from","default","new","this","typeof","instanceof","async","await","try","catch","throw","switch","case","break","continue","of","in","yield","null","undefined","true","false","type","interface","enum","implements","extends","readonly","abstract","declare","namespace","module","as","is","keyof","never","unknown","any","void","string","number","boolean","public","private","protected"],
     rust: ["fn","let","mut","const","if","else","for","while","loop","match","return","struct","enum","impl","trait","pub","use","mod","crate","self","super","where","as","in","ref","move","async","await","unsafe","true","false","Some","None","Ok","Err","Self","type","static","extern","dyn"],
     go: ["func","var","const","if","else","for","range","return","struct","interface","type","import","package","defer","go","chan","select","switch","case","break","continue","map","make","new","nil","true","false","string","int","bool","error"],
     sh: ["if","then","else","elif","fi","for","while","do","done","case","esac","function","return","in","echo","exit","export","local","readonly","set","unset","true","false"],
-    bash: ["if","then","else","elif","fi","for","while","do","done","case","esac","function","return","in","echo","exit","export","local","readonly","set","unset","true","false"],
     css: ["@import","@media","@keyframes","@font-face","@charset","@supports","!important"],
     html: [],
     json: ["true","false","null"],
@@ -245,10 +241,15 @@ function applySyntaxHighlighting(code: string, lang: string): string {
     cpp: ["if","else","for","while","do","switch","case","break","continue","return","struct","enum","typedef","union","sizeof","void","int","char","float","double","long","short","unsigned","signed","const","static","extern","register","volatile","auto","NULL","true","false","goto","default","inline","restrict","class","public","private","protected","virtual","override","template","typename","namespace","using","new","delete","this","try","catch","throw","nullptr","constexpr","auto","decltype","noexcept","final","abstract"],
     java: ["class","public","private","protected","static","final","void","int","long","double","float","boolean","char","byte","short","new","return","if","else","for","while","do","switch","case","break","continue","try","catch","throw","throws","finally","import","package","extends","implements","interface","abstract","synchronized","volatile","transient","native","null","true","false","this","super","instanceof","enum","assert"],
     rb: ["def","class","module","if","elsif","else","unless","for","while","until","do","end","return","yield","begin","rescue","ensure","raise","require","include","extend","attr_accessor","attr_reader","attr_writer","self","nil","true","false","and","or","not","in","then","puts","print","lambda","proc","new","super","case","when"],
-    ruby: ["def","class","module","if","elsif","else","unless","for","while","until","do","end","return","yield","begin","rescue","ensure","raise","require","include","extend","attr_accessor","attr_reader","attr_writer","self","nil","true","false","and","or","not","in","then","puts","print","lambda","proc","new","super","case","when"],
     odin: ["package","import","foreign","proc","struct","enum","union","map","dynamic","bit_set","bit_field","matrix","typeid","any","distinct","using","when","where","if","else","for","in","not_in","switch","case","defer","return","or_return","or_else","break","continue","fallthrough","cast","auto_cast","transmute","true","false","nil","context","size_of","align_of","offset_of","type_of","type_info_of","string","bool","int","uint","i8","i16","i32","i64","i128","u8","u16","u32","u64","u128","f16","f32","f64","rune","rawptr","cstring","uintptr","b8","b16","b32","b64"],
     zig: ["const","var","fn","return","if","else","for","while","switch","break","continue","defer","errdefer","unreachable","try","catch","orelse","pub","comptime","inline","noalias","threadlocal","align","allowzero","volatile","extern","export","test","struct","enum","union","error","opaque","undefined","null","true","false","and","or","anytype","type","void","bool","u8","u16","u32","u64","u128","i8","i16","i32","i64","i128","f16","f32","f64","f128","usize","isize","anyerror","anyframe","callconv","linksection","nosuspend","suspend","resume","async","await"],
   };
+  // Language aliases — point to the same arrays to avoid duplication
+  keywords.javascript = keywords.js!;
+  keywords.typescript = keywords.ts!;
+  keywords.python = keywords.py!;
+  keywords.bash = keywords.sh!;
+  keywords.ruby = keywords.rb!;
 
   const langKeywords = keywords[lang.toLowerCase()] ?? [];
   const kwSet = new Set(langKeywords);

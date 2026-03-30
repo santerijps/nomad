@@ -8,16 +8,6 @@ export function isUrl(input: string): boolean {
   return input.startsWith("http://") || input.startsWith("https://");
 }
 
-async function fetchBytes(url: string): Promise<ArrayBuffer | null> {
-  try {
-    const res = await fetch(url, { redirect: "follow" });
-    if (!res.ok) return null;
-    return await res.arrayBuffer();
-  } catch {
-    return null;
-  }
-}
-
 async function fetchText(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, { redirect: "follow" });

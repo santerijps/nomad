@@ -1,5 +1,5 @@
 import { resolve, dirname } from "node:path";
-import { getMimeType, isTextMime } from "./mime.ts";
+import { getMimeType } from "./mime.ts";
 
 export interface EmbedOptions {
   maxSize?: number | null;
