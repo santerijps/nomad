@@ -14,6 +14,7 @@ Ever tried sharing an HTML page only to find the images are missing, the styles 
 - 📧 **Email-friendly reports** — Attach a self-contained HTML report with charts, images, and styling intact
 - 📝 **Markdown publishing** — Write in Markdown, distribute as a polished HTML page
 - 🗂️ **Archiving websites** — Freeze a project's pages into portable snapshots
+- 🌐 **Saving web pages** — Download any URL and capture it as a self-contained offline HTML file
 - 🧩 **Prototyping** — Convert multi-file HTML/CSS/JS projects into single-file demos
 - 🎓 **Teaching materials** — Create handouts and tutorials that just work when opened
 
@@ -25,6 +26,7 @@ Ever tried sharing an HTML page only to find the images are missing, the styles 
 - **Directory processing** — Recursively convert an entire folder of `.md` and `.html` files in one command
 - **HTML minification** — Optionally strip comments, collapse whitespace, and compress inline CSS/JS with `--minify`
 - **Cross-platform** — Prebuilt executables for Linux, macOS, and Windows (x64 & ARM64) — no runtime required
+- **Remote page capture** — Download any web page by URL and embed all its resources into a single portable file
 
 ## Installation
 
@@ -100,6 +102,23 @@ nomad document.md -o document.html --minify
 nomad document.md -o document.html -m
 ```
 
+### Remote URL
+
+Download a remote web page and convert it to portable HTML with all resources embedded:
+
+```sh
+# Download a page and write to a file
+nomad https://example.com -o example.html
+
+# Download and print to stdout
+nomad https://example.com
+
+# Download and minify in one step
+nomad https://example.com -o page.html --minify
+```
+
+All images, stylesheets, scripts, and CSS `url()` references on the remote page are fetched and embedded as data URIs, producing a fully self-contained HTML file.
+
 ### Embed directive
 
 Include external files directly into your Markdown with the `{{embed:...}}` syntax. The path is resolved relative to the Markdown file.
@@ -130,7 +149,7 @@ nomad <input> [options]
 
 | Option              | Description                                  |
 | ------------------- | -------------------------------------------- |
-| `<input>`           | Input file (`.md`, `.html`) or directory      |
+| `<input>`           | Input file (`.md`, `.html`), directory, or URL |
 | `-o, --output`      | Output file or directory                      |
 | `-m, --minify`      | Minify and compress the output HTML           |
 | `-h, --help`        | Show help                                     |
@@ -147,8 +166,9 @@ nomad <input> [options]
    - `<video>`, `<audio>`, `<embed>`, `<object>`, `<iframe>` → embedded as data URIs
 4. **Minification** (optional) strips comments, collapses whitespace, and compresses inline CSS/JS
 5. The result is a **single self-contained HTML file** with zero external dependencies
+6. **Remote URLs** are fetched directly — the same embedding pipeline applies to all linked resources on the page
 
-Remote URLs (`http://`, `https://`) are left untouched — only local files are embedded.
+Remote URLs (`http://`, `https://`) in local files are left untouched — only local files are embedded. When the *input itself* is a URL, all resources on that page are fetched and embedded.
 
 ## Development
 
