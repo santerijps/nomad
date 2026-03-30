@@ -139,4 +139,32 @@ describe("CLI integration", () => {
     // Minified output should not have multi-line whitespace runs
     expect(stdout).not.toMatch(/\n\s*\n/);
   });
+
+  test("directory processing rewrites .md cross-links to .html", async () => {
+    const tmpDir = await makeTempDir();
+
+    const proc = Bun.spawn(
+      ["bun", "run", "src/index.ts", resolve(FIXTURES, "linked-site"), "-o", tmpDir],
+      { cwd: ROOT, stdout: "pipe", stderr: "pipe" }
+    );
+    await proc.exited;
+    expect(proc.exitCode).toBe(0);
+
+    // index.html should link to about.html and sub/page.html
+    const indexContent = await readFile(join(tmpDir, "index.html"), "utf-8");
+    expect(indexContent).toContain('href="about.html"');
+    expect(indexContent).toContain('href="sub/page.html"');
+    expect(indexContent).toContain('href="about.html#faq"');
+    // External .md URLs must NOT be rewritten
+    expect(indexContent).toContain('href="https://example.com/page.md"');
+
+    // about.html should link back to index.html
+    const aboutContent = await readFile(join(tmpDir, "about.html"), "utf-8");
+    expect(aboutContent).toContain('href="index.html"');
+
+    // sub/page.html should link to ../index.html and ../about.html
+    const subContent = await readFile(join(tmpDir, "sub", "page.html"), "utf-8");
+    expect(subContent).toContain('href="../index.html"');
+    expect(subContent).toContain('href="../about.html"');
+  });
 });

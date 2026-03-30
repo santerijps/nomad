@@ -3,6 +3,26 @@ import { markdownToHtml, wrapInHtmlDocument } from "./markdown.ts";
 import { embedResources } from "./embedder.ts";
 
 /**
+ * Rewrites local .md links in HTML to .html so inter-page navigation
+ * works after conversion. Remote URLs and non-.md links are left untouched.
+ */
+export function rewriteLocalMdLinks(html: string): string {
+  // Match href="...something.md" or href="...something.md#anchor"
+  // Only rewrite local relative links, not remote URLs.
+  return html.replace(
+    /(<a\s[^>]*href=["'])([^"']*\.md)(#[^"']*)?(?=["'])/gi,
+    (match, prefix: string, mdPath: string, anchor: string | undefined) => {
+      // Skip remote URLs
+      if (mdPath.startsWith("http://") || mdPath.startsWith("https://") || mdPath.startsWith("//")) {
+        return match;
+      }
+      const htmlPath = mdPath.replace(/\.md$/i, ".html");
+      return `${prefix}${htmlPath}${anchor ?? ""}`;
+    }
+  );
+}
+
+/**
  * Processes a single file (Markdown or HTML) and returns the fully
  * portable HTML output with all resources embedded.
  */
@@ -28,6 +48,9 @@ export async function processFile(filePath: string): Promise<string> {
   } else {
     throw new Error(`Unsupported file type: ${ext}. Only .md and .html files are supported.`);
   }
+
+  // Rewrite local .md links to .html
+  html = rewriteLocalMdLinks(html);
 
   // Embed all local resources into the HTML
   html = await embedResources(html, baseDir);
