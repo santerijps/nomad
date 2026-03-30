@@ -259,7 +259,8 @@ async function embedCssUrlReferences(css: string, cssDir: string): Promise<strin
     const localPath = resolveLocalPath(rawUrl, cssDir);
     const dataUri = await toDataUri(localPath);
     if (dataUri) {
-      css = css.replace(match[0], `url("${dataUri}")`);
+      const replacement = `url("${dataUri}")`;
+      css = css.replaceAll(match[0], replacement);
     }
   }
   return css;
@@ -277,7 +278,9 @@ async function embedCssUrls(html: string, baseDir: string): Promise<string> {
     if (!originalCss) continue;
     const embeddedCss = await embedCssUrlReferences(originalCss, baseDir);
     if (embeddedCss !== originalCss) {
-      html = html.replace(originalCss, embeddedCss);
+      const fullOriginal = match[0];
+      const fullReplacement = fullOriginal.replace(originalCss, () => embeddedCss);
+      html = html.replace(fullOriginal, () => fullReplacement);
     }
   }
   return html;

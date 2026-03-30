@@ -11,4 +11,4 @@ export interface ProcessOptions {
 
 export type InputFileType = ".md" | ".html";
 
-export const ALLOWED_INPUT_EXTENSIONS: readonly string[] = [".md", ".html"];
+export const ALLOWED_INPUT_EXTENSIONS: readonly string[] = [".md", ".html", ".htm"];

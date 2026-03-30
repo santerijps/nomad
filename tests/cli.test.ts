@@ -167,4 +167,31 @@ describe("CLI integration", () => {
     expect(subContent).toContain('href="../index.html"');
     expect(subContent).toContain('href="../about.html"');
   });
+
+  test("accepts flags before input path", async () => {
+    const proc = Bun.spawn(
+      ["bun", "run", "src/index.ts", "-m", resolve(FIXTURES, "sample.md")],
+      { cwd: ROOT, stdout: "pipe", stderr: "pipe" }
+    );
+    const stdout = await new Response(proc.stdout).text();
+    await proc.exited;
+    expect(proc.exitCode).toBe(0);
+    expect(stdout).toContain("<!DOCTYPE html>");
+    expect(stdout).toContain("<strong>test</strong>");
+  });
+
+  test("accepts -o flag before input path", async () => {
+    const tmpDir = await makeTempDir();
+    const outFile = join(tmpDir, "output.html");
+
+    const proc = Bun.spawn(
+      ["bun", "run", "src/index.ts", "-o", outFile, resolve(FIXTURES, "sample.md")],
+      { cwd: ROOT, stdout: "pipe", stderr: "pipe" }
+    );
+    await proc.exited;
+    expect(proc.exitCode).toBe(0);
+
+    const content = await readFile(outFile, "utf-8");
+    expect(content).toContain("<!DOCTYPE html>");
+  });
 });

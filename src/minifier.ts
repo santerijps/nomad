@@ -6,19 +6,23 @@ export function minifyHtml(html: string): string {
   // Remove HTML comments (but preserve conditional comments like <!--[if IE]>)
   html = html.replace(/<!--(?!\[if\s)[\s\S]*?-->/gi, "");
 
-  // Minify inline CSS within <style> tags (before general whitespace collapse)
+  // Extract and minify script/style blocks, replacing with placeholders
+  // so general whitespace operations don't corrupt their content.
+  const blocks: string[] = [];
   html = html.replace(
     /(<style[^>]*>)([\s\S]*?)(<\/style>)/gi,
     (_match, open: string, css: string, close: string) => {
-      return open + minifyCss(css) + close;
+      const idx = blocks.length;
+      blocks.push(open + minifyCss(css) + close);
+      return `\x00BLOCK${idx}\x00`;
     }
   );
-
-  // Minify inline JS within <script> tags (before general whitespace collapse)
   html = html.replace(
     /(<script[^>]*>)([\s\S]*?)(<\/script>)/gi,
     (_match, open: string, js: string, close: string) => {
-      return open + minifyJs(js) + close;
+      const idx = blocks.length;
+      blocks.push(open + minifyJs(js) + close);
+      return `\x00BLOCK${idx}\x00`;
     }
   );
 
@@ -35,6 +39,9 @@ export function minifyHtml(html: string): string {
   // Trim leading/trailing whitespace
   html = html.trim();
 
+  // Restore script/style blocks
+  html = html.replace(/\x00BLOCK(\d+)\x00/g, (_match, idx: string) => blocks[Number(idx)]!);
+
   return html;
 }
 
@@ -42,7 +49,7 @@ function minifyCss(css: string): string {
   // Remove CSS comments
   css = css.replace(/\/\*[\s\S]*?\*\//g, "");
   // Remove whitespace around special characters
-  css = css.replace(/\s*([{}:;,>~+])\s*/g, "$1");
+  css = css.replace(/\s*([{}:;,>~])\s*/g, "$1");
   // Collapse remaining whitespace
   css = css.replace(/\s{2,}/g, " ");
   return css.trim();
@@ -53,8 +60,6 @@ function minifyJs(js: string): string {
   js = js.replace(/^\s*\/\/.*$/gm, "");
   // Remove multi-line comments
   js = js.replace(/\/\*[\s\S]*?\*\//g, "");
-  // Collapse runs of whitespace (conservative — won't break string literals in most cases)
-  js = js.replace(/\n\s*/g, "\n");
   // Remove blank lines
   js = js.replace(/\n{2,}/g, "\n");
   return js.trim();

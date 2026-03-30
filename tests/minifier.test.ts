@@ -79,4 +79,18 @@ describe("minifyHtml", () => {
     const result = minifyHtml(html);
     expect(result).toContain("<p>Hello</p>");
   });
+
+  test("preserves whitespace around + and - in CSS calc()", () => {
+    const html = "<style>div { width: calc(100% + 20px); margin: calc(50vh - 10rem); }</style>";
+    const result = minifyHtml(html);
+    expect(result).toContain("calc(100% + 20px)");
+    expect(result).toContain("calc(50vh - 10rem)");
+  });
+
+  test("does not corrupt JS template literals", () => {
+    const html = '<script>const t = `line1\n  indented`;console.log(t);</script>';
+    const result = minifyHtml(html);
+    expect(result).toContain("const t = `line1");
+    expect(result).toContain("console.log(t)");
+  });
 });

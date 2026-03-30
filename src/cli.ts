@@ -35,27 +35,31 @@ export function parseArgs(argv: string[]): CliArgs {
     process.exit(0);
   }
 
-  const input = args[0];
+  let input: string | null = null;
+  let output: string | null = null;
+  let minify = false;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === "-o" || arg === "--output") {
+      output = args[i + 1] ?? null;
+      if (!output) {
+        console.error("Error: -o/--output flag requires a path argument.");
+        process.exit(1);
+      }
+      i++;
+    } else if (arg === "-m" || arg === "--minify") {
+      minify = true;
+    } else if (!input) {
+      input = arg;
+    }
+  }
+
   if (!input) {
     console.error("Error: No input file or directory specified.");
     console.log(USAGE);
     process.exit(1);
   }
-
-  let output: string | null = null;
-  const outputIndex = args.indexOf("-o");
-  const outputLongIndex = args.indexOf("--output");
-  const oIdx = outputIndex !== -1 ? outputIndex : outputLongIndex;
-
-  if (oIdx !== -1) {
-    output = args[oIdx + 1] ?? null;
-    if (!output) {
-      console.error("Error: -o/--output flag requires a path argument.");
-      process.exit(1);
-    }
-  }
-
-  const minify = args.includes("--minify") || args.includes("-m");
 
   return { input, output, minify };
 }

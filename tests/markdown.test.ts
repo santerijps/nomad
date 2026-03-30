@@ -78,6 +78,20 @@ describe("preprocessEmbeds", () => {
     expect(result).toContain("<!-- nomad: file not found:");
   });
 
+  test("blocks path traversal outside root directory", async () => {
+    const md = "{{embed:../../package.json}}";
+    const result = await preprocessEmbeds(md, FIXTURES);
+    expect(result).toContain("<!-- nomad: path outside root blocked:");
+    expect(result).not.toContain("nomad-ssg");
+  });
+
+  test("handles circular embeds without stack overflow", async () => {
+    const md = "{{embed:cycle-a.md}}";
+    const result = await preprocessEmbeds(md, FIXTURES);
+    // Should terminate and not throw; exact content depends on depth limit
+    expect(typeof result).toBe("string");
+  });
+
   test("returns unchanged markdown without embed directives", async () => {
     const md = "# Hello\n\nNo embeds here.";
     const result = await preprocessEmbeds(md, FIXTURES);
