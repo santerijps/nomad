@@ -1,36 +1,165 @@
-# Nomad - Static Site Generator for Truly Portable Sites
+# Nomad
 
-Nomad is a static site generator with an emphasis on generating truly portable sites. What does "true portability" mean? It means the following:
+**The static site generator that produces truly portable HTML files.**
 
-- Output consists purely of HTML files
-- All resources (CSS, JS, images, video, audio, PDFs etc.) are embedded directly into the HTML documents
-- This ensures that you can share HTML files that just work
-- The trade off is that the HTML files will be larger
+Nomad takes your Markdown or HTML files and produces self-contained HTML documents where every resource — CSS, JavaScript, images, video, audio, PDFs, fonts — is embedded directly into the file. No external dependencies, no broken links, no missing assets. Just a single `.html` file you can open anywhere.
 
-Nomad is a CLI app that can be used to convert individual files (MD, HTML) into HTML or entire recursively. Nomad can also be used to convert existing HTML/JS/CSS projects into truly portable sites.
+## Why Nomad?
 
-## Outline
+Ever tried sharing an HTML page only to find the images are missing, the styles are gone, or the scripts won't load? Nomad solves this by baking everything into one file.
 
-- Allowed input file types: .html and .md
-- Output file types: .html
-- HTML file embedding support: video, audio, image, PDF, text
-    - Use base64 encoded data blobs when possible
-- Processing flow:
-    1. Markdown files are converted to HTML
-    2. HTML files are analyzed for embedding possibilites
-        - If embeddable content is found, the content is embedded into the HTML files
-- Custom Markdown to HTML renderer that makes it possible to explicitly embed files
-    - E.g. embed raw text file in place
-    - The raw text embed can be used for including "components"
+**Perfect for:**
 
-## Command-line interface
+- 📄 **Documentation** — Ship a single HTML file that works offline, on any device
+- 📧 **Email-friendly reports** — Attach a self-contained HTML report with charts, images, and styling intact
+- 📝 **Markdown publishing** — Write in Markdown, distribute as a polished HTML page
+- 🗂️ **Archiving websites** — Freeze a project's pages into portable snapshots
+- 🧩 **Prototyping** — Convert multi-file HTML/CSS/JS projects into single-file demos
+- 🎓 **Teaching materials** — Create handouts and tutorials that just work when opened
+
+## Features
+
+- **Markdown → HTML** — Converts `.md` files using a fast built-in GFM-compliant renderer (tables, task lists, strikethrough, heading IDs, autolinks)
+- **Resource embedding** — Automatically inlines images, stylesheets, scripts, video, audio, PDFs, and fonts as base64 data URIs
+- **File includes** — Use `{{embed:path/to/file}}` in Markdown to include raw text, HTML components, or any snippet
+- **Directory processing** — Recursively convert an entire folder of `.md` and `.html` files in one command
+- **HTML minification** — Optionally strip comments, collapse whitespace, and compress inline CSS/JS with `--minify`
+- **Cross-platform** — Prebuilt executables for Linux, macOS, and Windows (x64 & ARM64) — no runtime required
+
+## Installation
+
+### Download a prebuilt binary
+
+Grab the latest release for your platform from the [Releases](https://github.com/user/nomad-ssg/releases) page:
+
+| Platform         | Binary                       |
+| ---------------- | ---------------------------- |
+| Linux x64        | `nomad-linux-x64`            |
+| Linux ARM64      | `nomad-linux-arm64`          |
+| macOS x64        | `nomad-darwin-x64`           |
+| macOS ARM64      | `nomad-darwin-arm64`         |
+| Windows x64      | `nomad-windows-x64.exe`      |
+| Windows ARM64    | `nomad-windows-arm64.exe`    |
+
+Place the binary somewhere on your `PATH` and you're ready to go.
+
+### Build from source
+
+Requires [Bun](https://bun.sh) v1.3+.
 
 ```sh
-nomad input.html # outputs to stdout
-nomad input.html -o output.html # outputs to output.html
-nomad input.md # outputs to stdout
-nomad input.md -o output.html # outputs to output.html
+# Clone the repository
+git clone https://github.com/user/nomad-ssg.git
+cd nomad-ssg
 
-nomad inputDirectory # creates a dir called "out" and writes output to files there
-nomad inputDirectory -o outputDirectory # same as above but writes output to specifiec dir
+# Install dependencies
+bun install
+
+# Run directly
+bun run src/index.ts --help
+
+# Build for the current platform
+bun build --compile src/index.ts --outfile nomad
+
+# Build for all platforms
+bun run build
 ```
+
+## Usage
+
+### Single file
+
+```sh
+# Convert Markdown and print to stdout
+nomad document.md
+
+# Convert Markdown and write to a file
+nomad document.md -o document.html
+
+# Convert an HTML file (embeds all local resources)
+nomad page.html -o portable-page.html
+```
+
+### Directory
+
+```sh
+# Process all .md and .html files recursively, output to ./out
+nomad my-site/
+
+# Process into a specific output directory
+nomad my-site/ -o dist/
+```
+
+### Minification
+
+```sh
+# Produce minified output (smaller file size)
+nomad document.md -o document.html --minify
+
+# Short flag works too
+nomad document.md -o document.html -m
+```
+
+### Embed directive
+
+Include external files directly into your Markdown with the `{{embed:...}}` syntax. The path is resolved relative to the Markdown file.
+
+```md
+# My Page
+
+Here is a reusable navigation bar:
+
+{{embed:components/nav.html}}
+
+And some content below.
+```
+
+This is useful for:
+
+- Reusable HTML components (headers, footers, navbars)
+- Including code samples from external files
+- Composing pages from smaller fragments
+
+Embeds are resolved recursively — an embedded file can itself contain `{{embed:...}}` directives.
+
+## CLI Reference
+
+```
+nomad <input> [options]
+```
+
+| Option              | Description                                  |
+| ------------------- | -------------------------------------------- |
+| `<input>`           | Input file (`.md`, `.html`) or directory      |
+| `-o, --output`      | Output file or directory                      |
+| `-m, --minify`      | Minify and compress the output HTML           |
+| `-h, --help`        | Show help                                     |
+| `-v, --version`     | Show version                                  |
+
+## How it works
+
+1. **Markdown files** are converted to HTML using Bun's built-in CommonMark/GFM renderer
+2. **`{{embed:...}}` directives** are resolved and inlined before conversion
+3. **HTML files** are scanned for local resource references:
+   - `<img src="...">` → embedded as `data:image/...;base64,...`
+   - `<link rel="stylesheet" href="...">` → replaced with inline `<style>` (CSS `url()` references are also embedded)
+   - `<script src="...">` → replaced with inline `<script>`
+   - `<video>`, `<audio>`, `<embed>`, `<object>`, `<iframe>` → embedded as data URIs
+4. **Minification** (optional) strips comments, collapses whitespace, and compresses inline CSS/JS
+5. The result is a **single self-contained HTML file** with zero external dependencies
+
+Remote URLs (`http://`, `https://`) are left untouched — only local files are embedded.
+
+## Development
+
+```sh
+# Run the test suite
+bun test
+
+# Run a specific test file
+bun test tests/embedder.test.ts
+```
+
+## License
+
+MIT
