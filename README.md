@@ -39,7 +39,7 @@ Ever tried sharing an HTML page only to find the images are missing, the styles 
 
 ### Download a prebuilt binary
 
-Grab the latest release for your platform from the [Releases](https://github.com/user/nomad-ssg/releases) page:
+Grab the latest release for your platform from the [Releases](https://github.com/user/nomad/releases) page:
 
 | Platform         | Binary                       |
 | ---------------- | ---------------------------- |
