@@ -48,6 +48,9 @@ export function minifyHtml(html: string): string {
 function minifyCss(css: string): string {
   // Remove CSS comments
   css = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  // Strip source map references
+  css = css.replace(/\/\*#\s*sourceMappingURL=[^\s*]+\s*\*\//g, "");
+  css = css.replace(/\/\/# sourceMappingURL=.+$/gm, "");
   // Remove whitespace around special characters
   css = css.replace(/\s*([{}:;,>~])\s*/g, "$1");
   // Collapse remaining whitespace
@@ -60,6 +63,8 @@ function minifyJs(js: string): string {
   js = js.replace(/^\s*\/\/.*$/gm, "");
   // Remove multi-line comments
   js = js.replace(/\/\*[\s\S]*?\*\//g, "");
+  // Strip source map references
+  js = js.replace(/\/\/# sourceMappingURL=.+$/gm, "");
   // Remove blank lines
   js = js.replace(/\n{2,}/g, "\n");
   return js.trim();

@@ -12,15 +12,20 @@ Arguments:
   <input>                          Input file (.md, .html), directory, or URL
   -o, --output <path>              Output file or directory
   -m, --minify                     Minify and compress the output HTML
+  -t, --template <file>            HTML template with {{content}}, {{title}}, etc.
+  --toc                            Generate a table of contents from headings
+  -w, --watch                      Watch for file changes and rebuild
+  --verbose                        Show warnings for skipped/failed resources
+  --max-size <bytes>               Max file size in bytes to embed (skip larger)
 
 Examples:
-  nomad input.html                 Convert HTML, output to stdout
-  nomad input.html -o output.html  Convert HTML, write to output.html
   nomad input.md                   Convert Markdown, output to stdout
   nomad input.md -o output.html    Convert Markdown, write to output.html
-  nomad inputDir                   Process directory, output to ./out
-  nomad inputDir -o outputDir      Process directory, output to outputDir
+  nomad input.md --toc             Include table of contents
+  nomad input.md -t template.html  Use custom HTML template
+  nomad inputDir -o dist/          Process directory, output to dist/
   nomad https://example.com -o page.html  Download & embed remote page
+  nomad inputDir -w -o dist/       Watch mode with auto-rebuild
 `.trim();
 
 export function parseArgs(argv: string[]): CliArgs {
@@ -39,7 +44,12 @@ export function parseArgs(argv: string[]): CliArgs {
 
   let input: string | null = null;
   let output: string | null = null;
+  let template: string | null = null;
   let minify = false;
+  let toc = false;
+  let watch = false;
+  let verbose = false;
+  let maxSize: number | null = null;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
@@ -50,8 +60,33 @@ export function parseArgs(argv: string[]): CliArgs {
         process.exit(1);
       }
       i++;
+    } else if (arg === "-t" || arg === "--template") {
+      template = args[i + 1] ?? null;
+      if (!template) {
+        console.error("Error: -t/--template flag requires a file path argument.");
+        process.exit(1);
+      }
+      i++;
+    } else if (arg === "--max-size") {
+      const raw = args[i + 1] ?? null;
+      if (!raw) {
+        console.error("Error: --max-size flag requires a numeric argument.");
+        process.exit(1);
+      }
+      maxSize = parseInt(raw, 10);
+      if (isNaN(maxSize) || maxSize <= 0) {
+        console.error("Error: --max-size must be a positive integer.");
+        process.exit(1);
+      }
+      i++;
     } else if (arg === "-m" || arg === "--minify") {
       minify = true;
+    } else if (arg === "--toc") {
+      toc = true;
+    } else if (arg === "-w" || arg === "--watch") {
+      watch = true;
+    } else if (arg === "--verbose") {
+      verbose = true;
     } else if (!input) {
       input = arg;
     }
@@ -63,5 +98,5 @@ export function parseArgs(argv: string[]): CliArgs {
     process.exit(1);
   }
 
-  return { input, output, minify };
+  return { input, output, minify, template, toc, watch, verbose, maxSize };
 }
