@@ -1,0 +1,20 @@
+{
+  "name": "nomad-ssg",
+  "version": "1.0.0",
+  "module": "src/index.ts",
+  "type": "module",
+  "bin": {
+    "nomad": "src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "test": "bun test",
+    "build": "bun run build.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
