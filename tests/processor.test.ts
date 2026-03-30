@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
-import { processFile, rewriteLocalMdLinks } from "../src/processor.ts";
+import { processFile, rewriteLocalMdLinks, extractHeadElements } from "../src/processor.ts";
 
 const FIXTURES = resolve(import.meta.dir, "fixtures");
 
@@ -119,5 +119,93 @@ describe("rewriteLocalMdLinks", () => {
   test("handles single-quoted href", () => {
     const input = "<a href='about.md'>About</a>";
     expect(rewriteLocalMdLinks(input)).toBe("<a href='about.html'>About</a>");
+  });
+});
+
+describe("markdown with embeddable HTML content", () => {
+  test("embeds CSS from link tags in markdown", async () => {
+    const result = await processFile(resolve(FIXTURES, "inline-resources.md"));
+    // <link> should be replaced with inlined CSS
+    expect(result).not.toContain('<link');
+    expect(result).toContain("<style>");
+    expect(result).toContain("font-family: sans-serif");
+  });
+
+  test("embeds images from img tags in markdown", async () => {
+    const result = await processFile(resolve(FIXTURES, "inline-resources.md"));
+    expect(result).toContain("data:image/png;base64,");
+  });
+
+  test("embeds scripts from script tags in markdown", async () => {
+    const result = await processFile(resolve(FIXTURES, "inline-resources.md"));
+    expect(result).toContain("Hello from app.js");
+  });
+
+  test("places extracted link tags in head", async () => {
+    const result = await processFile(resolve(FIXTURES, "inline-resources.md"));
+    // The embedded <style> (from the link) should appear inside <head>
+    const headMatch = result.match(/<head>([\s\S]*?)<\/head>/);
+    expect(headMatch).not.toBeNull();
+    expect(headMatch![1]).toContain("<style>");
+  });
+
+  test("preserves regular markdown content", async () => {
+    const result = await processFile(resolve(FIXTURES, "inline-resources.md"));
+    expect(result).toContain("<strong>bold</strong>");
+    expect(result).toContain("Page with Resources");
+  });
+});
+
+describe("extractHeadElements", () => {
+  test("extracts link tags from markdown", () => {
+    const md = '# Title\n\n<link rel="stylesheet" href="style.css">\n\nText.';
+    const { content, headElements } = extractHeadElements(md);
+    expect(headElements).toContain('<link rel="stylesheet" href="style.css">');
+    expect(content).not.toContain("<link");
+    expect(content).toContain("# Title");
+    expect(content).toContain("Text.");
+  });
+
+  test("extracts style blocks from markdown", () => {
+    const md = '# Title\n\n<style>\nbody { color: red; }\n</style>\n\nText.';
+    const { content, headElements } = extractHeadElements(md);
+    expect(headElements).toContain("<style>");
+    expect(headElements).toContain("body { color: red; }");
+    expect(headElements).toContain("</style>");
+    expect(content).not.toContain("<style>");
+  });
+
+  test("extracts single-line style blocks", () => {
+    const md = '<style>.foo { color: blue; }</style>';
+    const { headElements } = extractHeadElements(md);
+    expect(headElements).toContain("<style>.foo { color: blue; }</style>");
+  });
+
+  test("does not extract from fenced code blocks", () => {
+    const md = '```html\n<link rel="stylesheet" href="style.css">\n```';
+    const { content, headElements } = extractHeadElements(md);
+    expect(headElements).toBe("");
+    expect(content).toContain("<link");
+  });
+
+  test("does not extract link tags from tilde fenced code blocks", () => {
+    const md = '~~~\n<link rel="stylesheet" href="style.css">\n~~~';
+    const { content, headElements } = extractHeadElements(md);
+    expect(headElements).toBe("");
+    expect(content).toContain("<link");
+  });
+
+  test("extracts multiple head elements", () => {
+    const md = '<link rel="stylesheet" href="a.css">\n\n<link rel="icon" href="favicon.ico">\n\nText.';
+    const { headElements } = extractHeadElements(md);
+    expect(headElements).toContain('href="a.css"');
+    expect(headElements).toContain('href="favicon.ico"');
+  });
+
+  test("returns empty headElements when none found", () => {
+    const md = '# Just markdown\n\nSome text.';
+    const { content, headElements } = extractHeadElements(md);
+    expect(headElements).toBe("");
+    expect(content).toBe(md);
   });
 });

@@ -30,6 +30,70 @@ export function rewriteLocalMdLinks(html: string): string {
 }
 
 /**
+ * Extracts head-level HTML elements (<link>, <style>) from markdown content.
+ * These elements are removed from the markdown so they aren't lost if the
+ * markdown renderer strips them, and returned separately for injection
+ * into <head>. Elements inside fenced code blocks are left untouched.
+ */
+export function extractHeadElements(markdown: string): { content: string; headElements: string } {
+  const headElements: string[] = [];
+  const lines = markdown.split('\n');
+  const resultLines: string[] = [];
+  let inCodeBlock = false;
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i]!;
+    const stripped = line.trim();
+
+    // Track fenced code blocks (``` or ~~~)
+    if (/^(`{3,}|~{3,})/.test(stripped)) {
+      inCodeBlock = !inCodeBlock;
+      resultLines.push(line);
+      i++;
+      continue;
+    }
+
+    if (inCodeBlock) {
+      resultLines.push(line);
+      i++;
+      continue;
+    }
+
+    // Extract <link ...> tags (void/self-closing head elements)
+    if (/^<link\b[^>]*>\s*$/i.test(stripped)) {
+      headElements.push(stripped);
+      i++;
+      continue;
+    }
+
+    // Extract <style>...</style> blocks (possibly multi-line)
+    if (/^<style[\s>]/i.test(stripped)) {
+      let block = line;
+      let j = i + 1;
+      while (j < lines.length && !block.includes('</style>')) {
+        block += '\n' + lines[j]!;
+        j++;
+      }
+      if (block.includes('</style>')) {
+        headElements.push(block.trim());
+        i = j;
+        continue;
+      }
+      // Malformed style block — leave it in the content
+    }
+
+    resultLines.push(line);
+    i++;
+  }
+
+  return {
+    content: resultLines.join('\n'),
+    headElements: headElements.join('\n'),
+  };
+}
+
+/**
  * Processes a single file (Markdown or HTML) and returns the fully
  * portable HTML output with all resources embedded.
  */
@@ -52,6 +116,11 @@ export async function processFile(filePath: string, opts?: ProcessFileOptions): 
     const fm = parseFrontmatter(content);
     content = fm.content;
     metadata = fm.metadata;
+
+    // Extract head-level HTML elements before markdown conversion
+    const extracted = extractHeadElements(content);
+    content = extracted.content;
+    const headElements = extracted.headElements;
 
     const bodyHtml = await markdownToHtml(content, baseDir);
     let processedBody = highlightCodeBlocks(bodyHtml);
@@ -80,6 +149,11 @@ export async function processFile(filePath: string, opts?: ProcessFileOptions): 
       html = applyTemplate(templateContent, processedBody, title, metadata);
     } else {
       html = wrapInHtmlDocument(processedBody, title, metadata);
+    }
+
+    // Inject extracted head elements into <head>
+    if (headElements) {
+      html = html.replace('</head>', `${headElements}\n</head>`);
     }
   } else if (ext === ".html" || ext === ".htm") {
     html = content;

@@ -71,6 +71,63 @@ function resolveLocalPath(src: string, baseDir: string): string {
 }
 
 /**
+ * Fetches the text content of a remote URL.
+ * Returns null if the fetch fails.
+ */
+async function fetchRemoteText(url: string): Promise<string | null> {
+  try {
+    const fullUrl = url.startsWith("//") ? `https:${url}` : url;
+    const res = await fetch(fullUrl, { redirect: "follow" });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetches a remote URL and returns it as a base64 data URI.
+ * Returns null if the fetch fails.
+ */
+async function fetchRemoteDataUri(url: string, mimeHint?: string): Promise<string | null> {
+  try {
+    const fullUrl = url.startsWith("//") ? `https:${url}` : url;
+    const res = await fetch(fullUrl, { redirect: "follow" });
+    if (!res.ok) return null;
+    const mime = mimeHint ?? res.headers.get("content-type")?.split(";")[0]?.trim() ?? "application/octet-stream";
+    const bytes = await res.arrayBuffer();
+    const base64 = Buffer.from(bytes).toString("base64");
+    return `data:${mime};base64,${base64}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Embeds url() references within remote CSS content by fetching each
+ * referenced resource and converting to a data URI.
+ */
+async function embedRemoteCssUrlRefs(css: string, cssBaseUrl: string): Promise<string> {
+  const urlRegex = /url\(["']?(?!data:)([^"')]+)["']?\)/gi;
+  const matches = [...css.matchAll(urlRegex)];
+
+  for (const match of matches) {
+    const rawUrl = match[1];
+    if (!rawUrl) continue;
+    try {
+      const absUrl = new URL(rawUrl, cssBaseUrl).href;
+      const dataUri = await fetchRemoteDataUri(absUrl);
+      if (dataUri) {
+        css = css.replaceAll(match[0], `url("${dataUri}")`);
+      }
+    } catch {
+      // skip unresolvable URLs
+    }
+  }
+  return css;
+}
+
+/**
  * Processes HTML content and embeds all local resources (images, CSS, JS,
  * video, audio, PDFs, fonts, favicons, tracks, srcset/picture) directly
  * into the HTML as data URIs or inline content.
@@ -105,30 +162,41 @@ export async function embedResources(html: string, baseDir: string, opts?: Embed
 }
 
 async function embedImages(html: string, baseDir: string, opts?: EmbedOptions): Promise<string> {
-  const replacements: Array<{ src: string; dataUri: string }> = [];
+  const localReplacements: Array<{ src: string; dataUri: string }> = [];
+  const remoteReplacements: Array<{ src: string; dataUri: string }> = [];
 
   // Collect all img src values
   new HTMLRewriter()
     .on("img", {
       element(el) {
         const src = el.getAttribute("src");
-        if (src && !isRemoteUrl(src) && !src.startsWith("data:")) {
-          replacements.push({ src, dataUri: "" });
+        if (src && !src.startsWith("data:")) {
+          if (isRemoteUrl(src)) {
+            remoteReplacements.push({ src, dataUri: "" });
+          } else {
+            localReplacements.push({ src, dataUri: "" });
+          }
         }
       },
     })
     .transform(html);
 
-  // Resolve data URIs
-  for (const r of replacements) {
+  // Resolve local data URIs
+  for (const r of localReplacements) {
     const localPath = resolveLocalPath(r.src, baseDir);
     const dataUri = await toDataUri(localPath, opts);
     if (dataUri) r.dataUri = dataUri;
   }
 
+  // Resolve remote data URIs
+  for (const r of remoteReplacements) {
+    const dataUri = await fetchRemoteDataUri(r.src);
+    if (dataUri) r.dataUri = dataUri;
+  }
+
   // Apply replacements
   let result = html;
-  for (const r of replacements) {
+  for (const r of [...localReplacements, ...remoteReplacements]) {
     if (r.dataUri) {
       result = replaceAttrValue(result, "img", "src", r.src, r.dataUri);
     }
@@ -175,20 +243,25 @@ async function embedSrcset(html: string, baseDir: string, opts?: EmbedOptions): 
 }
 
 async function embedStylesheets(html: string, baseDir: string, opts?: EmbedOptions): Promise<string> {
-  const links: Array<{ href: string; content: string }> = [];
+  const localLinks: Array<{ href: string; content: string }> = [];
+  const remoteLinks: Array<{ href: string; content: string }> = [];
 
   new HTMLRewriter()
     .on('link[rel="stylesheet"], link[rel=stylesheet]', {
       element(el) {
         const href = el.getAttribute("href");
-        if (href && !isRemoteUrl(href)) {
-          links.push({ href, content: "" });
+        if (href) {
+          if (isRemoteUrl(href)) {
+            remoteLinks.push({ href, content: "" });
+          } else {
+            localLinks.push({ href, content: "" });
+          }
         }
       },
     })
     .transform(html);
 
-  for (const link of links) {
+  for (const link of localLinks) {
     const localPath = resolveLocalPath(link.href, baseDir);
     let content = await readTextFile(localPath);
     if (content) {
@@ -199,8 +272,16 @@ async function embedStylesheets(html: string, baseDir: string, opts?: EmbedOptio
     }
   }
 
+  for (const link of remoteLinks) {
+    let content = await fetchRemoteText(link.href);
+    if (content) {
+      content = await embedRemoteCssUrlRefs(content, link.href);
+      link.content = content;
+    }
+  }
+
   let result = html;
-  for (const link of links) {
+  for (const link of [...localLinks, ...remoteLinks]) {
     if (link.content) {
       // Replace <link rel="stylesheet" href="..."> with <style>...</style>
       const linkRegex = new RegExp(
@@ -214,20 +295,25 @@ async function embedStylesheets(html: string, baseDir: string, opts?: EmbedOptio
 }
 
 async function embedScripts(html: string, baseDir: string, opts?: EmbedOptions): Promise<string> {
-  const scripts: Array<{ src: string; content: string }> = [];
+  const localScripts: Array<{ src: string; content: string }> = [];
+  const remoteScripts: Array<{ src: string; content: string }> = [];
 
   new HTMLRewriter()
     .on("script[src]", {
       element(el) {
         const src = el.getAttribute("src");
-        if (src && !isRemoteUrl(src)) {
-          scripts.push({ src, content: "" });
+        if (src) {
+          if (isRemoteUrl(src)) {
+            remoteScripts.push({ src, content: "" });
+          } else {
+            localScripts.push({ src, content: "" });
+          }
         }
       },
     })
     .transform(html);
 
-  for (const script of scripts) {
+  for (const script of localScripts) {
     const localPath = resolveLocalPath(script.src, baseDir);
     const content = await readTextFile(localPath);
     if (content) {
@@ -241,8 +327,15 @@ async function embedScripts(html: string, baseDir: string, opts?: EmbedOptions):
     }
   }
 
+  for (const script of remoteScripts) {
+    const content = await fetchRemoteText(script.src);
+    if (content) {
+      script.content = content;
+    }
+  }
+
   let result = html;
-  for (const script of scripts) {
+  for (const script of [...localScripts, ...remoteScripts]) {
     if (script.content) {
       // Replace <script src="..."></script> with <script>content</script>
       const scriptRegex = new RegExp(
@@ -270,27 +363,37 @@ async function embedMedia(
   tag: "video" | "audio",
   opts?: EmbedOptions,
 ): Promise<string> {
-  const sources: Array<{ src: string; dataUri: string }> = [];
+  const localSources: Array<{ src: string; dataUri: string }> = [];
+  const remoteSources: Array<{ src: string; dataUri: string }> = [];
 
   new HTMLRewriter()
     .on(`${tag}[src], ${tag} source[src]`, {
       element(el) {
         const src = el.getAttribute("src");
-        if (src && !isRemoteUrl(src) && !src.startsWith("data:")) {
-          sources.push({ src, dataUri: "" });
+        if (src && !src.startsWith("data:")) {
+          if (isRemoteUrl(src)) {
+            remoteSources.push({ src, dataUri: "" });
+          } else {
+            localSources.push({ src, dataUri: "" });
+          }
         }
       },
     })
     .transform(html);
 
-  for (const s of sources) {
+  for (const s of localSources) {
     const localPath = resolveLocalPath(s.src, baseDir);
     const dataUri = await toDataUri(localPath, opts);
     if (dataUri) s.dataUri = dataUri;
   }
 
+  for (const s of remoteSources) {
+    const dataUri = await fetchRemoteDataUri(s.src);
+    if (dataUri) s.dataUri = dataUri;
+  }
+
   let result = html;
-  for (const s of sources) {
+  for (const s of [...localSources, ...remoteSources]) {
     if (s.dataUri) {
       result = replaceAttrValue(result, `${tag}|source`, "src", s.src, s.dataUri);
     }
